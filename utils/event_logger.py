@@ -3,8 +3,11 @@ Event logger for Streamlit - captures and displays events in the UI.
 """
 
 import json
-from typing import List, Dict, Any
-import streamlit as st
+from typing import List, Dict, Any, Optional
+try:
+    import streamlit as st
+except ImportError:
+    st = None
 from events.event_types import EventEnvelope
 
 
@@ -23,6 +26,32 @@ class StreamlitEventLogger:
         """Log an event and optionally save to file."""
         event_dict = event.to_dict()
         self.events.append(event_dict)
+        
+        # Broadcast to stream manager if available (for API context)
+        try:
+            from api.stream_manager import get_stream_manager
+            import asyncio
+            stream_manager = get_stream_manager()
+            # Schedule broadcast in event loop
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Event loop is running, schedule the task
+                    asyncio.create_task(stream_manager.broadcast_event(event_dict))
+                else:
+                    # Event loop exists but not running, run until complete
+                    loop.run_until_complete(stream_manager.broadcast_event(event_dict))
+            except RuntimeError:
+                # No event loop available, try to get or create one
+                try:
+                    loop = asyncio.get_running_loop()
+                    asyncio.create_task(stream_manager.broadcast_event(event_dict))
+                except RuntimeError:
+                    # No running loop, create new one
+                    asyncio.run(stream_manager.broadcast_event(event_dict))
+        except (ImportError, Exception):
+            # Stream manager not available or error - continue normally
+            pass
         
         if self.save_to_file:
             try:
@@ -94,9 +123,21 @@ class StreamlitEventLogger:
         self.events = []
 
 
+# Global logger for API context
+_api_event_logger: Optional[StreamlitEventLogger] = None
+
+
 def get_event_logger() -> StreamlitEventLogger:
-    """Get or create the event logger in session state."""
-    if "event_logger" not in st.session_state:
-        st.session_state.event_logger = StreamlitEventLogger()
-    return st.session_state.event_logger
+    """Get or create the event logger (works in both Streamlit and API contexts)."""
+    try:
+        # Try Streamlit context first
+        if "event_logger" not in st.session_state:
+            st.session_state.event_logger = StreamlitEventLogger()
+        return st.session_state.event_logger
+    except (ImportError, RuntimeError, AttributeError):
+        # API context - use global logger
+        global _api_event_logger
+        if _api_event_logger is None:
+            _api_event_logger = StreamlitEventLogger()
+        return _api_event_logger
 
