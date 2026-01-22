@@ -16,10 +16,19 @@ from api.models import (
 )
 from api.utils import get_model_info
 from models.gemini_client import (
-    generate_text,
+    generate_text as gemini_generate_text,
     parse_project_json,
     save_project_files
 )
+# Import other providers' generate_text functions with aliases to avoid name conflicts
+try:
+    from models.claude_client import generate_text as claude_generate_text
+except ImportError:
+    claude_generate_text = None
+try:
+    from models.gpt_client import generate_text as gpt_generate_text
+except ImportError:
+    gpt_generate_text = None
 from models.unified_client import (
     classify_page_type_unified,
     analyze_query_detail_unified,
@@ -74,8 +83,10 @@ async def generate_project(request: ProjectGenerationRequest):
     try:
         start_time = time.time()
         
-        # Get model_name from request (default to gemini)
-        model_name = (request.model_name or "gemini").lower()
+        # Get model_family from request (default to Gemini)
+        from router.router_config import normalize_model_family
+        model_family = request.model_family or "Gemini"
+        model_key = normalize_model_family(model_family)
         
         # Initialize event system
         event_logger = get_event_logger()
@@ -86,7 +97,7 @@ async def generate_project(request: ProjectGenerationRequest):
             project_id=project_id,
             conversation_id=conversation_id,
             callback=lambda event: event_logger.log_event(event),
-            model_name=model_name
+            model_name=model_family  # EventEmitter stores model_family
         )
         
         # Emit initial events
@@ -99,19 +110,58 @@ async def generate_project(request: ProjectGenerationRequest):
         page_type_key = request.page_type_key
         page_type_model = None
         if not page_type_key:
-            page_type_key, page_type_meta = classify_page_type_unified(request.user_query, model_name=model_name)
-            page_type_model = page_type_meta.get("model", get_router_model(model_name))
+            page_type_key, page_type_meta = classify_page_type_unified(request.user_query, model_name=model_key)
+            page_type_model = page_type_meta.get("model", get_router_model(model_family))
             models_used_list.append(ModelInfo(**get_model_info(page_type_model)))
         
         page_type_config = get_page_type_by_key(page_type_key)
         
         # Analyze query detail
-        query_model = get_router_model(model_name)
-        needs_followup, _ = analyze_query_detail_unified(request.user_query, model_name=model_name)
+        query_model = get_router_model(model_family)
+        needs_followup, confidence = analyze_query_detail_unified(request.user_query, model_name=model_key)
         models_used_list.append(ModelInfo(**get_model_info(query_model)))
         
+        # Handle follow-up questions if needed
+        # If needs_followup is True and no questionnaire_answers provided, emit questions as events
+        # But continue with generation (non-blocking for REST API)
+        if needs_followup and not request.questionnaire_answers:
+            from data.questionnaire_config import get_questionnaire, has_questionnaire
+            
+            if has_questionnaire(page_type_key):
+                questionnaire = get_questionnaire(page_type_key)
+                emitter.emit_chat_message("I need to gather some additional information to create the perfect page for you.")
+                
+                # Emit questions as events (non-blocking - API continues)
+                type_mapping = {
+                    "radio": "mcq",
+                    "multiselect": "multi_select",
+                    "open_ended": "open_ended"
+                }
+                
+                for question_data in questionnaire.get("questions", []):
+                    q_id = question_data.get("id", f"q_{len(questionnaire.get('questions', []))}")
+                    question_type = type_mapping.get(question_data.get("type", "radio"), "mcq")
+                    label = question_data.get("question", "")
+                    is_skippable = True  # Questions are skippable in API context
+                    
+                    content = {}
+                    if question_type in ["mcq", "multi_select"]:
+                        content["options"] = question_data.get("options", [])
+                    elif question_type == "open_ended":
+                        content["placeholder"] = question_data.get("placeholder", "Enter your answer...")
+                    
+                    emitter.emit_chat_question(
+                        q_id=q_id,
+                        question_type=question_type,
+                        label=label,
+                        is_skippable=is_skippable,
+                        content=content
+                    )
+                
+                emitter.emit_chat_message("Proceeding with generation using defaults. You can provide questionnaire_answers in a follow-up request for more customization.")
+        
         # Build generation prompt - make it more explicit for Claude/GPT
-        provider = get_provider(model_name)
+        provider = get_provider(model_family)
         if provider == "gemini":
             base_prompt = (
                 "Return exactly one JSON object describing a React+Vite+TypeScript project. "
@@ -155,8 +205,8 @@ async def generate_project(request: ProjectGenerationRequest):
         wizard_inputs = request.wizard_inputs or {}
         final_prompt = base_prompt + "USER_FIELDS:\n" + json.dumps(wizard_inputs, ensure_ascii=False)
         
-        # Use main_model for generation (based on model_name)
-        webpage_model = get_main_model(model_name)
+        # Use main_model for generation (based on model_family)
+        webpage_model = get_main_model(model_family)
         
         emitter.emit_progress_init(
             steps=[
@@ -175,15 +225,17 @@ async def generate_project(request: ProjectGenerationRequest):
         # Generate project - route to appropriate provider
         # Use higher max_tokens for project generation (projects can be large)
         if provider == "gemini":
-            output = generate_text(final_prompt, model=webpage_model)
+            output = gemini_generate_text(final_prompt, model=webpage_model)
         elif provider == "anthropic":
-            from models.claude_client import generate_text
-            output = generate_text(final_prompt, model=webpage_model, max_tokens=16384)
+            if claude_generate_text is None:
+                raise HTTPException(status_code=500, detail="Claude client not available")
+            output = claude_generate_text(final_prompt, model=webpage_model, max_tokens=16384)
         elif provider == "openai":
-            from models.gpt_client import generate_text
-            output = generate_text(final_prompt, model=webpage_model, max_tokens=16384)
+            if gpt_generate_text is None:
+                raise HTTPException(status_code=500, detail="GPT client not available")
+            output = gpt_generate_text(final_prompt, model=webpage_model, max_tokens=16384)
         else:
-            output = generate_text(final_prompt, model=webpage_model)
+            output = gemini_generate_text(final_prompt, model=webpage_model)
         elapsed_time = time.time() - start_time
         
         emitter.emit_thinking_end(duration_ms=int(elapsed_time * 1000))
@@ -221,11 +273,16 @@ async def generate_project(request: ProjectGenerationRequest):
             
             # Retry generation with higher token limit
             if provider == "anthropic":
-                from models.claude_client import generate_text
-                output = generate_text(strict_prompt, model=webpage_model, max_tokens=16384)
+                if claude_generate_text is None:
+                    raise HTTPException(status_code=500, detail="Claude client not available")
+                output = claude_generate_text(strict_prompt, model=webpage_model, max_tokens=16384)
             elif provider == "openai":
-                from models.gpt_client import generate_text
-                output = generate_text(strict_prompt, model=webpage_model, max_tokens=16384)
+                if gpt_generate_text is None:
+                    raise HTTPException(status_code=500, detail="GPT client not available")
+                output = gpt_generate_text(strict_prompt, model=webpage_model, max_tokens=16384)
+            else:
+                # Fallback to gemini client (shouldn't happen due to condition, but safe)
+                output = gemini_generate_text(strict_prompt, model=webpage_model)
             
             project = parse_project_json(output)
         
@@ -333,8 +390,10 @@ async def modify_project(request: ProjectModificationRequest):
                 detail="Either project_json or project_id must be provided"
             )
         
-        # Get model_name from request (default to gemini)
-        model_name = (request.model_name or "gemini").lower()
+        # Get model_family from request (default to Gemini)
+        from router.router_config import normalize_model_family
+        model_family = request.model_family or "Gemini"
+        model_key = normalize_model_family(model_family)
         
         # Initialize event system
         event_logger = get_event_logger()
@@ -345,7 +404,7 @@ async def modify_project(request: ProjectModificationRequest):
             project_id=project_id,
             conversation_id=conversation_id,
             callback=lambda event: event_logger.log_event(event),
-            model_name=model_name
+            model_name=model_family  # EventEmitter stores model_family
         )
         
         emitter.emit_chat_message("Starting project modification...")
@@ -353,11 +412,11 @@ async def modify_project(request: ProjectModificationRequest):
         # Classify modification complexity using router model
         complexity, complexity_meta = classify_modification_complexity_unified(
             request.instruction, 
-            model_name=model_name
+            model_name=model_key
         )
         
-        # Select model based on complexity + model_name
-        mod_model = get_modification_model(model_name, complexity)
+        # Select model based on complexity + model_family
+        mod_model = get_modification_model(model_family, complexity)
         
         # Build modification prompt
         mod_prompt = f"""You are a JSON project modifier. You MUST return ONLY valid JSON, nothing else.
@@ -379,18 +438,20 @@ IMPORTANT: Return ONLY the complete modified project JSON. No markdown, no code 
         
         # Generate modification - route to appropriate provider
         from router.router_config import get_provider
-        provider = get_provider(model_name)
+        provider = get_provider(model_family)
         
         if provider == "gemini":
-            mod_out = generate_text(mod_prompt, model=mod_model)
+            mod_out = gemini_generate_text(mod_prompt, model=mod_model)
         elif provider == "anthropic":
-            from models.claude_client import generate_text
-            mod_out = generate_text(mod_prompt, model=mod_model, max_tokens=16384)
+            if claude_generate_text is None:
+                raise HTTPException(status_code=500, detail="Claude client not available")
+            mod_out = claude_generate_text(mod_prompt, model=mod_model, max_tokens=16384)
         elif provider == "openai":
-            from models.gpt_client import generate_text
-            mod_out = generate_text(mod_prompt, model=mod_model, max_tokens=16384)
+            if gpt_generate_text is None:
+                raise HTTPException(status_code=500, detail="GPT client not available")
+            mod_out = gpt_generate_text(mod_prompt, model=mod_model, max_tokens=16384)
         else:
-            mod_out = generate_text(mod_prompt, model=mod_model)
+            mod_out = gemini_generate_text(mod_prompt, model=mod_model)
         
         mod_project = parse_project_json(mod_out)
         
@@ -412,27 +473,36 @@ IMPORTANT: Return ONLY the complete modified project JSON. No markdown, no code 
             
             # Retry generation with higher token limit
             if provider == "anthropic":
-                from models.claude_client import generate_text
-                mod_out = generate_text(strict_mod_prompt, model=mod_model, max_tokens=16384)
+                if claude_generate_text is None:
+                    raise HTTPException(status_code=500, detail="Claude client not available")
+                mod_out = claude_generate_text(strict_mod_prompt, model=mod_model, max_tokens=16384)
             elif provider == "openai":
-                from models.gpt_client import generate_text
-                mod_out = generate_text(strict_mod_prompt, model=mod_model, max_tokens=16384)
+                if gpt_generate_text is None:
+                    raise HTTPException(status_code=500, detail="GPT client not available")
+                mod_out = gpt_generate_text(strict_mod_prompt, model=mod_model, max_tokens=16384)
+            else:
+                # Fallback to gemini client (shouldn't happen due to condition, but safe)
+                mod_out = gemini_generate_text(strict_mod_prompt, model=mod_model)
             
             mod_project = parse_project_json(mod_out)
         
         # Fallback to main_model if parsing failed
         if not mod_project:
-            main_model = get_main_model(model_name)
+            main_model = get_main_model(model_family)
             if mod_model != main_model:
                 emitter.emit_chat_message(f"Retrying with {main_model}...")
                 if provider == "gemini":
-                    mod_out = generate_text(mod_prompt, model=main_model)
+                    mod_out = gemini_generate_text(mod_prompt, model=main_model)
                 elif provider == "anthropic":
-                    from models.claude_client import generate_text
-                    mod_out = generate_text(mod_prompt, model=main_model, max_tokens=16384)
+                    if claude_generate_text is None:
+                        raise HTTPException(status_code=500, detail="Claude client not available")
+                    mod_out = claude_generate_text(mod_prompt, model=main_model, max_tokens=16384)
                 elif provider == "openai":
-                    from models.gpt_client import generate_text
-                    mod_out = generate_text(mod_prompt, model=main_model, max_tokens=16384)
+                    if gpt_generate_text is None:
+                        raise HTTPException(status_code=500, detail="GPT client not available")
+                    mod_out = gpt_generate_text(mod_prompt, model=main_model, max_tokens=16384)
+                else:
+                    mod_out = gemini_generate_text(mod_prompt, model=main_model)
                 mod_project = parse_project_json(mod_out)
                 mod_model = main_model
         

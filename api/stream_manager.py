@@ -3,6 +3,7 @@ Stream Manager for Real-time Event Broadcasting
 """
 
 import asyncio
+import queue
 from typing import Dict, Optional, Any, List
 from collections import defaultdict
 import json
@@ -17,21 +18,25 @@ class StreamManager:
         # Map of (project_id, conversation_id) -> list of queues
         self._streams: Dict[str, List[asyncio.Queue]] = defaultdict(list)
         self._all_events: List[Dict[str, Any]] = []  # Store all events for new connections
+        # Synchronous queue for events from sync callbacks (thread-safe)
+        self._sync_event_queue = queue.Queue()
+        self._processor_started = False
+        self._processor_task: Optional[asyncio.Task] = None
     
-    def _get_stream_key(self, project_id: Optional[str], conversation_id: Optional[str]) -> str:
+    def _get_stream_key(self, project_id: Optional[str], conversation_id: Optional[str], model_name: Optional[str] = None) -> str:
         """Generate a key for stream filtering"""
-        return f"{project_id or '*'}:{conversation_id or '*'}"
+        return f"{project_id or '*'}:{conversation_id or '*'}:{model_name or '*'}"
     
-    def register_stream(self, project_id: Optional[str], conversation_id: Optional[str]) -> asyncio.Queue:
+    def register_stream(self, project_id: Optional[str], conversation_id: Optional[str], model_name: Optional[str] = None) -> asyncio.Queue:
         """Register a new stream connection and return its queue"""
         queue = asyncio.Queue()
-        stream_key = self._get_stream_key(project_id, conversation_id)
+        stream_key = self._get_stream_key(project_id, conversation_id, model_name)
         self._streams[stream_key].append(queue)
         return queue
     
-    def unregister_stream(self, project_id: Optional[str], conversation_id: Optional[str], queue: asyncio.Queue):
+    def unregister_stream(self, project_id: Optional[str], conversation_id: Optional[str], queue: asyncio.Queue, model_name: Optional[str] = None):
         """Unregister a stream connection"""
-        stream_key = self._get_stream_key(project_id, conversation_id)
+        stream_key = self._get_stream_key(project_id, conversation_id, model_name)
         if stream_key in self._streams:
             try:
                 self._streams[stream_key].remove(queue)
@@ -50,15 +55,22 @@ class StreamManager:
         
         event_project_id = event.get("project_id")
         event_conversation_id = event.get("conversation_id")
+        # Get model_name from event (can be top-level or in payload)
+        event_model_name = event.get("model_name") or event.get("payload", {}).get("model_name")
         
         # Broadcast to matching streams
         for stream_key, queues in list(self._streams.items()):
-            project_id, conversation_id = stream_key.split(":", 1)
+            parts = stream_key.split(":", 2)
+            project_id = parts[0] if len(parts) > 0 else "*"
+            conversation_id = parts[1] if len(parts) > 1 else "*"
+            model_filter = parts[2] if len(parts) > 2 else "*"
             
             # Check if event matches this stream's filters
             if project_id != "*" and event_project_id != project_id:
                 continue
             if conversation_id != "*" and event_conversation_id != conversation_id:
+                continue
+            if model_filter != "*" and event_model_name and event_model_name.lower() != model_filter.lower():
                 continue
             
             # Send to all queues for this stream key
@@ -67,6 +79,30 @@ class StreamManager:
                     await queue.put(event)
                 except Exception as e:
                     print(f"[STREAM_MANAGER] Error broadcasting to queue: {e}")
+    
+    async def _process_sync_event_queue(self):
+        """Background task to process events from synchronous queue"""
+        print("[STREAM_MANAGER] Background event processor running...")
+        while True:
+            try:
+                # Get event from queue (with timeout to allow checking for shutdown)
+                try:
+                    event = self._sync_event_queue.get(timeout=1.0)
+                    # Broadcast the event
+                    await self.broadcast_event(event)
+                    print(f"[STREAM_MANAGER] Broadcasted event: {event.get('event_type', 'unknown')}")
+                except queue.Empty:
+                    # No events, continue waiting
+                    await asyncio.sleep(0.1)
+                    continue
+            except asyncio.CancelledError:
+                print("[STREAM_MANAGER] Background processor cancelled")
+                break
+            except Exception as e:
+                print(f"[STREAM_MANAGER] Error processing sync event queue: {e}")
+                import traceback
+                traceback.print_exc()
+                await asyncio.sleep(0.1)
     
     def get_historical_events(
         self, 

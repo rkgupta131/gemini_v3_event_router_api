@@ -1,6 +1,15 @@
 """
-Router Configuration - Maps model_name to router and main models
+Router Configuration - Maps model_family to router and main models
 """
+
+# Map model_family (from API) to internal model keys
+MODEL_FAMILY_MAP = {
+    "gemini": "gemini",
+    "anthropic": "claude",
+    "claude": "claude",
+    "openai": "gpt",
+    "gpt": "gpt"
+}
 
 ROUTER_CONFIG = {
     "gemini": {
@@ -21,42 +30,59 @@ ROUTER_CONFIG = {
 }
 
 
-def get_router_model(model_name: str = "gemini") -> str:
+def normalize_model_family(model_family: str) -> str:
+    """
+    Normalize model_family from API (e.g., "Anthropic", "Gemini", "OpenAI") to internal key.
+    
+    Args:
+        model_family: Model family name from API (case-insensitive)
+    
+    Returns:
+        Internal model key (gemini, claude, gpt)
+    """
+    if not model_family:
+        return "gemini"
+    
+    model_family_lower = model_family.lower().strip()
+    return MODEL_FAMILY_MAP.get(model_family_lower, "gemini")
+
+
+def get_router_model(model_family: str = "gemini") -> str:
     """
     Get the router model for classification tasks (intent, page_type, query, chat, modification complexity).
     
     Args:
-        model_name: Model family name (gemini, claude, gpt). Case-insensitive.
+        model_family: Model family name (Gemini, Anthropic, OpenAI) or internal key (gemini, claude, gpt). Case-insensitive.
     
     Returns:
         Model identifier for router operations
     """
-    model_name_lower = model_name.lower() if model_name else "gemini"
-    config = ROUTER_CONFIG.get(model_name_lower, ROUTER_CONFIG["gemini"])
+    internal_key = normalize_model_family(model_family)
+    config = ROUTER_CONFIG.get(internal_key, ROUTER_CONFIG["gemini"])
     return config["router_model"]
 
 
-def get_main_model(model_name: str = "gemini") -> str:
+def get_main_model(model_family: str = "gemini") -> str:
     """
     Get the main model for generation tasks (project generation, complex modifications).
     
     Args:
-        model_name: Model family name (gemini, claude, gpt). Case-insensitive.
+        model_family: Model family name (Gemini, Anthropic, OpenAI) or internal key (gemini, claude, gpt). Case-insensitive.
     
     Returns:
         Model identifier for main operations
     """
-    model_name_lower = model_name.lower() if model_name else "gemini"
-    config = ROUTER_CONFIG.get(model_name_lower, ROUTER_CONFIG["gemini"])
+    internal_key = normalize_model_family(model_family)
+    config = ROUTER_CONFIG.get(internal_key, ROUTER_CONFIG["gemini"])
     return config["main_model"]
 
 
-def get_modification_model(model_name: str, complexity: str) -> str:
+def get_modification_model(model_family: str, complexity: str) -> str:
     """
     Get the appropriate model for modifications based on complexity.
     
     Args:
-        model_name: Model family name (gemini, claude, gpt). Case-insensitive.
+        model_family: Model family name (Gemini, Anthropic, OpenAI) or internal key (gemini, claude, gpt). Case-insensitive.
         complexity: Modification complexity (small, medium, complex)
     
     Returns:
@@ -66,37 +92,38 @@ def get_modification_model(model_name: str, complexity: str) -> str:
     
     # Small/Medium use router_model, Complex uses main_model
     if complexity_lower == "complex":
-        return get_main_model(model_name)
+        return get_main_model(model_family)
     else:
-        return get_router_model(model_name)
+        return get_router_model(model_family)
 
 
-def get_provider(model_name: str = "gemini") -> str:
+def get_provider(model_family: str = "gemini") -> str:
     """
-    Get the provider name for the given model_name.
+    Get the provider name for the given model_family.
     
     Args:
-        model_name: Model family name (gemini, claude, gpt). Case-insensitive.
+        model_family: Model family name (Gemini, Anthropic, OpenAI) or internal key (gemini, claude, gpt). Case-insensitive.
     
     Returns:
         Provider name (gemini, anthropic, openai)
     """
-    model_name_lower = model_name.lower() if model_name else "gemini"
-    config = ROUTER_CONFIG.get(model_name_lower, ROUTER_CONFIG["gemini"])
+    internal_key = normalize_model_family(model_family)
+    config = ROUTER_CONFIG.get(internal_key, ROUTER_CONFIG["gemini"])
     return config["provider"]
 
 
-def is_valid_model_name(model_name: str) -> bool:
+def is_valid_model_family(model_family: str) -> bool:
     """
-    Check if model_name is valid.
+    Check if model_family is valid.
     
     Args:
-        model_name: Model family name to check
+        model_family: Model family name to check (Gemini, Anthropic, OpenAI, or internal keys)
     
     Returns:
         True if valid, False otherwise
     """
-    if not model_name:
+    if not model_family:
         return False
-    return model_name.lower() in ROUTER_CONFIG
+    internal_key = normalize_model_family(model_family)
+    return internal_key in ROUTER_CONFIG
 

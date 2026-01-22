@@ -25,32 +25,29 @@ class StreamlitEventLogger:
     def log_event(self, event: EventEnvelope):
         """Log an event and optionally save to file."""
         event_dict = event.to_dict()
+        
+        # Extract model_name from payload if present and add as top-level field
+        model_name = event_dict.get("payload", {}).get("model_name")
+        if model_name:
+            event_dict["model_name"] = model_name
+        
         self.events.append(event_dict)
         
         # Broadcast to stream manager if available (for API context)
+        # Use a synchronous queue that will be processed by async background task
         try:
             from api.stream_manager import get_stream_manager
-            import asyncio
             stream_manager = get_stream_manager()
-            # Schedule broadcast in event loop
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Event loop is running, schedule the task
-                    asyncio.create_task(stream_manager.broadcast_event(event_dict))
-                else:
-                    # Event loop exists but not running, run until complete
-                    loop.run_until_complete(stream_manager.broadcast_event(event_dict))
-            except RuntimeError:
-                # No event loop available, try to get or create one
-                try:
-                    loop = asyncio.get_running_loop()
-                    asyncio.create_task(stream_manager.broadcast_event(event_dict))
-                except RuntimeError:
-                    # No running loop, create new one
-                    asyncio.run(stream_manager.broadcast_event(event_dict))
-        except (ImportError, Exception):
+            
+            # Add event to queue (thread-safe, synchronous)
+            # The background processor will pick it up and broadcast it
+            stream_manager._sync_event_queue.put_nowait(event_dict)
+            
+        except (ImportError, Exception) as e:
             # Stream manager not available or error - continue normally
+            print(f"[EVENT_LOGGER] Error queuing event for broadcast: {e}")
+            import traceback
+            traceback.print_exc()
             pass
         
         if self.save_to_file:

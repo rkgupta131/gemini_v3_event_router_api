@@ -25,6 +25,32 @@ from api.routes import (
 # Load environment variables
 load_dotenv()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown events"""
+    # Startup: Start background event processor
+    from api.stream_manager import get_stream_manager
+    import asyncio
+    stream_manager = get_stream_manager()
+    
+    # Start background processor (queue is already initialized in __init__)
+    if stream_manager._processor_task is None or (stream_manager._processor_task and stream_manager._processor_task.done()):
+        stream_manager._processor_task = asyncio.create_task(stream_manager._process_sync_event_queue())
+        print("[STREAM_MANAGER] Background event processor started")
+    
+    yield
+    
+    # Shutdown: Cancel background task
+    if stream_manager._processor_task and not stream_manager._processor_task.done():
+        stream_manager._processor_task.cancel()
+        try:
+            await stream_manager._processor_task
+        except asyncio.CancelledError:
+            pass
+        print("[STREAM_MANAGER] Background event processor stopped")
+
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Webpage Builder API",
@@ -32,7 +58,8 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan
 )
 
 # CORS middleware

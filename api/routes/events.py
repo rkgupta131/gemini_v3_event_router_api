@@ -55,7 +55,7 @@ async def stream_events(
     ```
     """
     stream_manager = get_stream_manager()
-    event_queue = stream_manager.register_stream(project_id, conversation_id)
+    event_queue = stream_manager.register_stream(project_id, conversation_id, model_name)
     
     async def event_generator():
         """Generator function for SSE streaming"""
@@ -97,7 +97,7 @@ async def stream_events(
             yield f"event: error\ndata: {json.dumps(error_event)}\n\n"
         finally:
             # Cleanup: unregister stream
-            stream_manager.unregister_stream(project_id, conversation_id, event_queue)
+            stream_manager.unregister_stream(project_id, conversation_id, event_queue, model_name)
     
     return StreamingResponse(
         event_generator(),

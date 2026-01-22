@@ -38,14 +38,12 @@ class EventEmitter:
         """Emit an event and call the callback if set."""
         # Add model_name to event if available
         if self.model_name:
-            # Add to payload or as top-level field
+            # Add to payload
             if hasattr(event, 'payload') and isinstance(event.payload, dict):
                 event.payload['model_name'] = self.model_name
-            # Also add to dict representation
-            event_dict = event.to_dict()
-            event_dict['model_name'] = self.model_name
         
         if self.callback:
+            # Call callback with event - it will convert to dict
             self.callback(event)
         return event
     

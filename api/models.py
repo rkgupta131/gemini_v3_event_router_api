@@ -25,7 +25,7 @@ class IntentClassificationRequest(BaseModel):
     """Request model for intent classification"""
     user_text: str = Field(..., description="User input text to classify")
     model: Optional[str] = Field(None, description="Optional model override")
-    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
+    model_family: Optional[str] = Field(None, description="Model family: Gemini, Anthropic, or OpenAI (defaults to Gemini)")
 
 
 class IntentClassificationResponse(BaseModel):
@@ -46,7 +46,7 @@ class PageTypeClassificationRequest(BaseModel):
     """Request model for page type classification"""
     user_text: str = Field(..., description="User input text to classify")
     model: Optional[str] = Field(None, description="Optional model override")
-    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
+    model_family: Optional[str] = Field(None, description="Model family: Gemini, Anthropic, or OpenAI (defaults to Gemini)")
 
 
 class PageTypeClassificationResponse(BaseModel):
@@ -67,7 +67,7 @@ class QueryAnalysisRequest(BaseModel):
     """Request model for query detail analysis"""
     user_text: str = Field(..., description="User query to analyze")
     model: Optional[str] = Field(None, description="Optional model override")
-    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
+    model_family: Optional[str] = Field(None, description="Model family: Gemini, Anthropic, or OpenAI (defaults to Gemini)")
 
 
 class QueryAnalysisResponse(BaseModel):
@@ -87,7 +87,7 @@ class ChatRequest(BaseModel):
     """Request model for chat response"""
     user_text: str = Field(..., description="User message")
     model: Optional[str] = Field(None, description="Optional model override")
-    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
+    model_family: Optional[str] = Field(None, description="Model family: Gemini, Anthropic, or OpenAI (defaults to Gemini)")
 
 
 class ChatResponse(BaseModel):
@@ -115,20 +115,22 @@ class ProjectGenerationRequest(BaseModel):
     )
     project_id: Optional[str] = Field(None, description="Optional project ID")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID")
-    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
+    model_family: Optional[str] = Field(None, description="Model family: Gemini, Anthropic, or OpenAI (defaults to Gemini)")
 
 
 class ProjectGenerationResponse(BaseModel):
     """Response model for project generation"""
     project_id: str = Field(..., description="Generated project ID")
-    conversation_id: str = Field(..., description="Conversation ID")
-    project: Dict[str, Any] = Field(..., description="Generated project JSON")
-    files_count: int = Field(..., description="Number of files in the project")
+    conversation_id: Optional[str] = Field(None, description="Conversation ID")
+    project: Optional[Dict[str, Any]] = Field(None, description="Generated project JSON (None if questions were emitted)")
+    files_count: Optional[int] = Field(None, description="Number of files in the project")
     page_type: Optional[str] = Field(None, description="Detected page type")
-    model_used: str = Field(..., description="Model used for generation (deprecated, use model_info)")
+    model_used: Optional[str] = Field(None, description="Model used for generation (deprecated, use model_info)")
     model_info: ModelInfo = Field(..., description="Model information with family and name")
     models_used: Optional[List[ModelInfo]] = Field(None, description="All models used in the pipeline (intent, page_type, generation, etc.)")
     generation_time_seconds: Optional[float] = Field(None, description="Time taken for generation")
+    message: Optional[str] = Field(None, description="Optional message (e.g., when questions are emitted)")
+    requires_questionnaire: Optional[bool] = Field(False, description="True if questionnaire answers are needed")
 
 
 # ============================================================================
@@ -141,7 +143,7 @@ class ProjectModificationRequest(BaseModel):
     project_json: Optional[Dict[str, Any]] = Field(None, description="Base project JSON (if not using project_id)")
     project_id: Optional[str] = Field(None, description="Project ID to modify (if project_json not provided)")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID")
-    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
+    model_family: Optional[str] = Field(None, description="Model family: Gemini, Anthropic, or OpenAI (defaults to Gemini)")
 
 
 class ProjectModificationResponse(BaseModel):
