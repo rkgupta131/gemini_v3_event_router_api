@@ -1,0 +1,431 @@
+{
+	"info": {
+		"_postman_id": "gemini-v3-event-router-api",
+		"name": "Gemini V3 Event Router API",
+		"description": "Complete API collection for testing the Webpage Builder API with Gemini models",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health & Info",
+			"item": [
+				{
+					"name": "Root - API Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": ["{{base_url}}"],
+							"path": [""]
+						}
+					}
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Intent Classification",
+			"item": [
+				{
+					"name": "Classify Intent - Webpage Build",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_text\": \"I want to build a CRM dashboard for my marketing agency\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/intent/classify",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "intent", "classify"]
+						}
+					}
+				},
+				{
+					"name": "Classify Intent - Chat",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_text\": \"What is a CRM?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/intent/classify",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "intent", "classify"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Page Type",
+			"item": [
+				{
+					"name": "Classify Page Type",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_text\": \"Build a CRM dashboard for my marketing agency\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/page-type/classify",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "page-type", "classify"]
+						}
+					}
+				},
+				{
+					"name": "Get Page Type Reference",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/page-type/crm_dashboard",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "page-type", "crm_dashboard"]
+						}
+					}
+				},
+				{
+					"name": "List All Page Types",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/page-types",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "page-types"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Query Analysis",
+			"item": [
+				{
+					"name": "Analyze Query Detail",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_text\": \"Build a landing page\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/query/analyze",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "query", "analyze"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Chat",
+			"item": [
+				{
+					"name": "Chat Response",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_text\": \"What is a CRM system?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "chat"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Questionnaire",
+			"item": [
+				{
+					"name": "Get Questionnaire for Page Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/questionnaire/crm_dashboard",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "questionnaire", "crm_dashboard"]
+						}
+					}
+				},
+				{
+					"name": "Check Questionnaire Exists",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/questionnaire/landing_page/exists",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "questionnaire", "landing_page", "exists"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "categories"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Project Generation",
+			"item": [
+				{
+					"name": "Generate Project - Simple",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_query\": \"Build a landing page for a SaaS product\",\n  \"wizard_inputs\": {\n    \"hero_text\": \"Welcome to Our Product\",\n    \"subtext\": \"The best solution for your needs\",\n    \"cta\": \"Get Started\",\n    \"theme\": \"Light\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/project/generate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "project", "generate"]
+						}
+					}
+				},
+				{
+					"name": "Generate Project - With Questionnaire",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_query\": \"Build a CRM dashboard\",\n  \"page_type_key\": \"crm_dashboard\",\n  \"questionnaire_answers\": {\n    \"business_type\": \"Marketing Agency\",\n    \"team_size\": \"Small (2-10 people)\",\n    \"key_features\": [\"Lead Management\", \"Deal Pipeline Tracking\", \"Activity Timeline\"]\n  },\n  \"wizard_inputs\": {\n    \"hero_text\": \"CRM Dashboard\",\n    \"subtext\": \"Manage your leads efficiently\",\n    \"cta\": \"Get Started\",\n    \"theme\": \"Light\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/project/generate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "project", "generate"]
+						}
+					}
+				},
+				{
+					"name": "Generate Project - Complex (CRM)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"user_query\": \"Build a comprehensive CRM dashboard for my marketing agency with lead tracking, deal pipeline, and activity timeline\",\n  \"page_type_key\": \"crm_dashboard\",\n  \"project_id\": \"proj_test_123\",\n  \"conversation_id\": \"conv_test_456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/project/generate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "project", "generate"]
+						}
+					}
+				},
+				{
+					"name": "Get Project by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/project/{{project_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "project", "{{project_id}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Project Modification",
+			"item": [
+				{
+					"name": "Modify Project - Simple Change",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"instruction\": \"Change the theme to dark mode\",\n  \"project_id\": \"{{project_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/project/modify",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "project", "modify"]
+						}
+					}
+				},
+				{
+					"name": "Modify Project - Add Component",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"instruction\": \"Add a contact form component to the landing page\",\n  \"project_id\": \"{{project_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/project/modify",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "project", "modify"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Events",
+			"item": [
+				{
+					"name": "Get Events (Non-streaming)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/events?project_id={{project_id}}&conversation_id={{conversation_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "events"],
+							"query": [
+								{
+									"key": "project_id",
+									"value": "{{project_id}}"
+								},
+								{
+									"key": "conversation_id",
+									"value": "{{conversation_id}}"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Stream Events (SSE)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stream?project_id={{project_id}}&conversation_id={{conversation_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "stream"],
+							"query": [
+								{
+									"key": "project_id",
+									"value": "{{project_id}}",
+									"description": "Filter events by project ID"
+								},
+								{
+									"key": "conversation_id",
+									"value": "{{conversation_id}}",
+									"description": "Filter events by conversation ID"
+								}
+							]
+						},
+						"description": "Note: SSE streaming works best in browsers or specialized tools. Postman may not display SSE streams properly. Use the /events endpoint for testing in Postman."
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "project_id",
+			"value": "proj_test_123",
+			"type": "string"
+		},
+		{
+			"key": "conversation_id",
+			"value": "conv_test_456",
+			"type": "string"
+		}
+	]
+}
+
