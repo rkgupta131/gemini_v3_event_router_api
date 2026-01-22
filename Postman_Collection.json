@@ -7,6 +7,200 @@
 	},
 	"item": [
 		{
+			"name": "Unified API (Single Endpoint)",
+			"item": [
+				{
+					"name": "Execute - Classify Intent",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"classify_intent\",\n  \"user_text\": \"I want to build a CRM dashboard\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Classify Page Type",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"classify_page_type\",\n  \"user_text\": \"Build a CRM dashboard for my marketing agency\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Analyze Query",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"analyze_query\",\n  \"user_text\": \"Build a landing page\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Chat",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"chat\",\n  \"user_text\": \"What is a CRM?\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Generate Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"generate_project\",\n  \"user_query\": \"Build a CRM dashboard for my marketing agency\",\n  \"page_type_key\": \"crm_dashboard\",\n  \"questionnaire_answers\": {\n    \"business_type\": \"Marketing Agency\",\n    \"team_size\": \"Small (2-10 people)\"\n  },\n  \"wizard_inputs\": {\n    \"hero_text\": \"CRM Dashboard\",\n    \"subtext\": \"Manage your leads efficiently\",\n    \"cta\": \"Get Started\",\n    \"theme\": \"Light\"\n  },\n  \"project_id\": \"{{project_id}}\",\n  \"conversation_id\": \"{{conversation_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Modify Project",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"modify_project\",\n  \"instruction\": \"Change the theme to dark mode\",\n  \"project_id\": \"{{project_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Get Questionnaire",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"get_questionnaire\",\n  \"page_type_key\": \"crm_dashboard\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Get Categories",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"get_categories\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				},
+				{
+					"name": "Execute - Get Page Type",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"get_page_type\",\n  \"page_type_key\": \"crm_dashboard\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/execute",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "execute"]
+						}
+					}
+				}
+			]
+		},
+		{
 			"name": "Health & Info",
 			"item": [
 				{

@@ -18,7 +18,8 @@ from api.routes import (
     project,
     events,
     questionnaire,
-    categories
+    categories,
+    unified
 )
 
 # Load environment variables
@@ -44,6 +45,10 @@ app.add_middleware(
 )
 
 # Include routers
+# Unified endpoint (single API for all operations)
+app.include_router(unified.router, prefix="/api/v1", tags=["Unified API"])
+
+# Individual endpoints (for backward compatibility)
 app.include_router(intent.router, prefix="/api/v1", tags=["Intent"])
 app.include_router(page_type.router, prefix="/api/v1", tags=["Page Type"])
 app.include_router(query.router, prefix="/api/v1", tags=["Query"])
