@@ -26,14 +26,25 @@ class EventEmitter:
         project_id: Optional[str] = None,
         conversation_id: Optional[str] = None,
         callback: Optional[Callable[[EventEnvelope], None]] = None,
+        model_name: Optional[str] = None,
     ):
         self.project_id = project_id
         self.conversation_id = conversation_id
         self.callback = callback
+        self.model_name = model_name
         self._event_counter = 0
     
     def emit(self, event: EventEnvelope) -> EventEnvelope:
         """Emit an event and call the callback if set."""
+        # Add model_name to event if available
+        if self.model_name:
+            # Add to payload or as top-level field
+            if hasattr(event, 'payload') and isinstance(event.payload, dict):
+                event.payload['model_name'] = self.model_name
+            # Also add to dict representation
+            event_dict = event.to_dict()
+            event_dict['model_name'] = self.model_name
+        
         if self.callback:
             self.callback(event)
         return event

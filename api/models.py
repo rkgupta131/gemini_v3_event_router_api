@@ -25,6 +25,7 @@ class IntentClassificationRequest(BaseModel):
     """Request model for intent classification"""
     user_text: str = Field(..., description="User input text to classify")
     model: Optional[str] = Field(None, description="Optional model override")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class IntentClassificationResponse(BaseModel):
@@ -45,6 +46,7 @@ class PageTypeClassificationRequest(BaseModel):
     """Request model for page type classification"""
     user_text: str = Field(..., description="User input text to classify")
     model: Optional[str] = Field(None, description="Optional model override")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class PageTypeClassificationResponse(BaseModel):
@@ -65,6 +67,7 @@ class QueryAnalysisRequest(BaseModel):
     """Request model for query detail analysis"""
     user_text: str = Field(..., description="User query to analyze")
     model: Optional[str] = Field(None, description="Optional model override")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class QueryAnalysisResponse(BaseModel):
@@ -84,6 +87,7 @@ class ChatRequest(BaseModel):
     """Request model for chat response"""
     user_text: str = Field(..., description="User message")
     model: Optional[str] = Field(None, description="Optional model override")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class ChatResponse(BaseModel):
@@ -111,6 +115,7 @@ class ProjectGenerationRequest(BaseModel):
     )
     project_id: Optional[str] = Field(None, description="Optional project ID")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class ProjectGenerationResponse(BaseModel):
@@ -136,6 +141,7 @@ class ProjectModificationRequest(BaseModel):
     project_json: Optional[Dict[str, Any]] = Field(None, description="Base project JSON (if not using project_id)")
     project_id: Optional[str] = Field(None, description="Project ID to modify (if project_json not provided)")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class ProjectModificationResponse(BaseModel):
@@ -241,6 +247,7 @@ class EventStreamRequest(BaseModel):
     project_id: Optional[str] = Field(None, description="Project ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID")
     event_types: Optional[List[str]] = Field(None, description="Filter by event types")
+    model_name: Optional[str] = Field(None, description="Filter by model family: Gemini, Claude, or GPT")
 
 
 # ============================================================================

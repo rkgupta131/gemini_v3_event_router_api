@@ -18,13 +18,14 @@ from api.utils import get_model_info
 from models.gemini_client import (
     generate_text,
     parse_project_json,
-    save_project_files,
-    classify_page_type,
-    analyze_query_detail,
-    classify_modification_complexity,
-    get_model_for_complexity,
-    get_smaller_model
+    save_project_files
 )
+from models.unified_client import (
+    classify_page_type_unified,
+    analyze_query_detail_unified,
+    classify_modification_complexity_unified
+)
+from router.router_config import get_router_model, get_main_model, get_modification_model, get_provider
 from data.page_types_reference import get_page_type_by_key
 from data.questionnaire_config import has_questionnaire
 from events import EventEmitter
@@ -73,6 +74,9 @@ async def generate_project(request: ProjectGenerationRequest):
     try:
         start_time = time.time()
         
+        # Get model_name from request (default to gemini)
+        model_name = (request.model_name or "gemini").lower()
+        
         # Initialize event system
         event_logger = get_event_logger()
         project_id = request.project_id or f"proj_{int(time.time())}"
@@ -81,7 +85,8 @@ async def generate_project(request: ProjectGenerationRequest):
         emitter = EventEmitter(
             project_id=project_id,
             conversation_id=conversation_id,
-            callback=lambda event: event_logger.log_event(event)
+            callback=lambda event: event_logger.log_event(event),
+            model_name=model_name
         )
         
         # Emit initial events
@@ -94,24 +99,35 @@ async def generate_project(request: ProjectGenerationRequest):
         page_type_key = request.page_type_key
         page_type_model = None
         if not page_type_key:
-            page_type_key, page_type_meta = classify_page_type(request.user_query)
-            page_type_model = page_type_meta.get("model", get_smaller_model())
+            page_type_key, page_type_meta = classify_page_type_unified(request.user_query, model_name=model_name)
+            page_type_model = page_type_meta.get("model", get_router_model(model_name))
             models_used_list.append(ModelInfo(**get_model_info(page_type_model)))
         
         page_type_config = get_page_type_by_key(page_type_key)
         
         # Analyze query detail
-        query_model = get_smaller_model()
-        needs_followup, _ = analyze_query_detail(request.user_query, model=query_model)
+        query_model = get_router_model(model_name)
+        needs_followup, _ = analyze_query_detail_unified(request.user_query, model_name=model_name)
         models_used_list.append(ModelInfo(**get_model_info(query_model)))
         
-        # Build generation prompt
-        base_prompt = (
-            "Return exactly one JSON object describing a React+Vite+TypeScript project. "
-            "Schema must be: {\"project\": {\"name\": string, \"description\": string, \"files\": {...}, \"dirents\": {...}, \"meta\": {...}}}. "
-            "Files should be strings (escaped) or objects with a 'content' key. "
-            "Return only the JSON object and nothing else.\n\n"
-        )
+        # Build generation prompt - make it more explicit for Claude/GPT
+        provider = get_provider(model_name)
+        if provider == "gemini":
+            base_prompt = (
+                "Return exactly one JSON object describing a React+Vite+TypeScript project. "
+                "Schema must be: {\"project\": {\"name\": string, \"description\": string, \"files\": {...}, \"dirents\": {...}, \"meta\": {...}}}. "
+                "Files should be strings (escaped) or objects with a 'content' key. "
+                "Return only the JSON object and nothing else.\n\n"
+            )
+        else:
+            # More explicit prompt for Claude/GPT to ensure JSON-only output
+            base_prompt = (
+                "CRITICAL: You MUST return ONLY valid JSON. No markdown, no code blocks, no explanations, no text before or after.\n\n"
+                "Return exactly one JSON object describing a React+Vite+TypeScript project. "
+                "Schema must be: {\"project\": {\"name\": string, \"description\": string, \"files\": {...}, \"dirents\": {...}, \"meta\": {...}}}. "
+                "Files should be strings (escaped) or objects with a 'content' key.\n\n"
+                "IMPORTANT: Your response must start with { and end with }. Do NOT wrap in ```json or markdown. Return ONLY the raw JSON object.\n\n"
+            )
         
         # Add page type specific requirements
         if page_type_config:
@@ -139,16 +155,8 @@ async def generate_project(request: ProjectGenerationRequest):
         wizard_inputs = request.wizard_inputs or {}
         final_prompt = base_prompt + "USER_FIELDS:\n" + json.dumps(wizard_inputs, ensure_ascii=False)
         
-        # Determine model based on page type complexity
-        complex_page_types = ['crm_dashboard', 'hr_portal', 'inventory_management', 'ai_tutor_lms']
-        medium_page_types = ['ecommerce_fashion', 'service_marketplace', 'hyperlocal_delivery', 'real_estate_listing']
-        
-        if page_type_key in complex_page_types:
-            webpage_model = "gemini-3-pro-preview"
-        elif page_type_key in medium_page_types:
-            webpage_model = "gemini-2.0-flash"
-        else:
-            webpage_model = "gemini-2.0-flash"
+        # Use main_model for generation (based on model_name)
+        webpage_model = get_main_model(model_name)
         
         emitter.emit_progress_init(
             steps=[
@@ -164,8 +172,18 @@ async def generate_project(request: ProjectGenerationRequest):
         emitter.emit_progress_update("generate", "in_progress")
         emitter.emit_thinking_start()
         
-        # Generate project
-        output = generate_text(final_prompt, model=webpage_model)
+        # Generate project - route to appropriate provider
+        # Use higher max_tokens for project generation (projects can be large)
+        if provider == "gemini":
+            output = generate_text(final_prompt, model=webpage_model)
+        elif provider == "anthropic":
+            from models.claude_client import generate_text
+            output = generate_text(final_prompt, model=webpage_model, max_tokens=16384)
+        elif provider == "openai":
+            from models.gpt_client import generate_text
+            output = generate_text(final_prompt, model=webpage_model, max_tokens=16384)
+        else:
+            output = generate_text(final_prompt, model=webpage_model)
         elapsed_time = time.time() - start_time
         
         emitter.emit_thinking_end(duration_ms=int(elapsed_time * 1000))
@@ -175,18 +193,76 @@ async def generate_project(request: ProjectGenerationRequest):
         # Parse project JSON
         project = parse_project_json(output)
         
+        # If parsing failed, try with a stricter prompt (retry once)
+        if not project and provider != "gemini":
+            print(f"[PROJECT_GEN] First parse attempt failed. Output length: {len(output)} chars")
+            print(f"[PROJECT_GEN] Output preview (first 500 chars): {output[:500]}")
+            print(f"[PROJECT_GEN] Output preview (last 500 chars): {output[-500:]}")
+            
+            # Check if JSON appears incomplete (doesn't end with })
+            if not output.strip().endswith('}'):
+                print("[PROJECT_GEN] WARNING: Output doesn't end with '}', might be truncated!")
+                emitter.emit_chat_message("Response appears truncated. Retrying with higher token limit...")
+            
+            emitter.emit_chat_message("Retrying with stricter JSON prompt...")
+            
+            # Create a stricter prompt
+            strict_prompt = (
+                "You are a JSON generator. Return ONLY valid JSON, nothing else.\n\n"
+                "CRITICAL RULES:\n"
+                "1. Start your response with {\n"
+                "2. End your response with }\n"
+                "3. Do NOT include markdown code blocks (no ```json or ```)\n"
+                "4. Do NOT include any text before or after the JSON\n"
+                "5. Do NOT include explanations or comments\n"
+                "6. Ensure all strings are properly escaped (use \\n for newlines, \\\" for quotes)\n"
+                "7. Ensure the JSON is complete and valid\n\n"
+            ) + final_prompt
+            
+            # Retry generation with higher token limit
+            if provider == "anthropic":
+                from models.claude_client import generate_text
+                output = generate_text(strict_prompt, model=webpage_model, max_tokens=16384)
+            elif provider == "openai":
+                from models.gpt_client import generate_text
+                output = generate_text(strict_prompt, model=webpage_model, max_tokens=16384)
+            
+            project = parse_project_json(output)
+        
         if not project:
+            # Log the actual output for debugging
+            output_preview = output[:1000] if output else "No output received"
+            output_end = output[-500:] if output and len(output) > 500 else output
+            print(f"[PROJECT_GEN] Parse failed. Model: {webpage_model}, Provider: {provider}")
+            print(f"[PROJECT_GEN] Output length: {len(output) if output else 0} characters")
+            print(f"[PROJECT_GEN] Output preview (first 1000 chars): {output_preview}")
+            print(f"[PROJECT_GEN] Output preview (last 500 chars): {output_end}")
+            
+            # Try to get more detailed error from the parser
+            try:
+                # Try to find where JSON breaks
+                first_brace = output.find('{')
+                last_brace = output.rfind('}')
+                if first_brace != -1 and last_brace != -1:
+                    json_candidate = output[first_brace:last_brace+1]
+                    json.loads(json_candidate)  # This will raise with specific error
+            except json.JSONDecodeError as e:
+                print(f"[PROJECT_GEN] JSON decode error at position {e.pos}: {e.msg}")
+                error_context_start = max(0, e.pos - 100)
+                error_context_end = min(len(output), e.pos + 100)
+                print(f"[PROJECT_GEN] Error context: {output[error_context_start:error_context_end]}")
+            
             emitter.emit_progress_update("parse", "failed")
             emitter.emit_error(
                 scope="validation",
                 message="Failed to parse JSON from model output",
-                details="The model may have returned invalid JSON or non-JSON content.",
+                details=f"The model returned output that could not be parsed as JSON. Output length: {len(output) if output else 0} chars. Preview: {output_preview[:200]}...",
                 actions=["retry", "ask_user"]
             )
             emitter.emit_stream_failed()
             raise HTTPException(
                 status_code=500,
-                detail="Failed to parse project JSON from model output"
+                detail=f"Failed to parse project JSON from model output. Model: {webpage_model}. Output length: {len(output) if output else 0} chars. Check server logs for details."
             )
         
         emitter.emit_progress_update("parse", "completed")
@@ -257,9 +333,31 @@ async def modify_project(request: ProjectModificationRequest):
                 detail="Either project_json or project_id must be provided"
             )
         
-        # Classify modification complexity
-        complexity, complexity_meta = classify_modification_complexity(request.instruction)
-        mod_model = get_model_for_complexity(complexity)
+        # Get model_name from request (default to gemini)
+        model_name = (request.model_name or "gemini").lower()
+        
+        # Initialize event system
+        event_logger = get_event_logger()
+        project_id = request.project_id or f"proj_{int(time.time())}"
+        conversation_id = request.conversation_id or f"conv_{int(time.time())}"
+        
+        emitter = EventEmitter(
+            project_id=project_id,
+            conversation_id=conversation_id,
+            callback=lambda event: event_logger.log_event(event),
+            model_name=model_name
+        )
+        
+        emitter.emit_chat_message("Starting project modification...")
+        
+        # Classify modification complexity using router model
+        complexity, complexity_meta = classify_modification_complexity_unified(
+            request.instruction, 
+            model_name=model_name
+        )
+        
+        # Select model based on complexity + model_name
+        mod_model = get_modification_model(model_name, complexity)
         
         # Build modification prompt
         mod_prompt = f"""You are a JSON project modifier. You MUST return ONLY valid JSON, nothing else.
@@ -279,20 +377,80 @@ User modification request:
 
 IMPORTANT: Return ONLY the complete modified project JSON. No markdown, no code blocks, no explanations. Just the raw JSON starting with {{ and ending with }}."""
         
-        # Generate modification
-        mod_out = generate_text(mod_prompt, model=mod_model)
+        # Generate modification - route to appropriate provider
+        from router.router_config import get_provider
+        provider = get_provider(model_name)
+        
+        if provider == "gemini":
+            mod_out = generate_text(mod_prompt, model=mod_model)
+        elif provider == "anthropic":
+            from models.claude_client import generate_text
+            mod_out = generate_text(mod_prompt, model=mod_model, max_tokens=16384)
+        elif provider == "openai":
+            from models.gpt_client import generate_text
+            mod_out = generate_text(mod_prompt, model=mod_model, max_tokens=16384)
+        else:
+            mod_out = generate_text(mod_prompt, model=mod_model)
+        
         mod_project = parse_project_json(mod_out)
         
-        # Fallback to pro-preview if parsing failed
-        if not mod_project and mod_model != "gemini-3-pro-preview":
-            mod_out = generate_text(mod_prompt, model="gemini-3-pro-preview")
+        # If parsing failed, try with a stricter prompt (retry once)
+        if not mod_project and provider != "gemini":
+            print(f"[PROJECT_MOD] First parse attempt failed. Output preview (first 500 chars): {mod_out[:500]}")
+            emitter.emit_chat_message("Retrying with stricter JSON prompt...")
+            
+            # Create a stricter prompt
+            strict_mod_prompt = (
+                "You are a JSON generator. Return ONLY valid JSON, nothing else.\n\n"
+                "CRITICAL RULES:\n"
+                "1. Start your response with {\n"
+                "2. End your response with }\n"
+                "3. Do NOT include markdown code blocks (no ```json or ```)\n"
+                "4. Do NOT include any text before or after the JSON\n"
+                "5. Do NOT include explanations or comments\n\n"
+            ) + mod_prompt
+            
+            # Retry generation with higher token limit
+            if provider == "anthropic":
+                from models.claude_client import generate_text
+                mod_out = generate_text(strict_mod_prompt, model=mod_model, max_tokens=16384)
+            elif provider == "openai":
+                from models.gpt_client import generate_text
+                mod_out = generate_text(strict_mod_prompt, model=mod_model, max_tokens=16384)
+            
             mod_project = parse_project_json(mod_out)
-            mod_model = "gemini-3-pro-preview"
+        
+        # Fallback to main_model if parsing failed
+        if not mod_project:
+            main_model = get_main_model(model_name)
+            if mod_model != main_model:
+                emitter.emit_chat_message(f"Retrying with {main_model}...")
+                if provider == "gemini":
+                    mod_out = generate_text(mod_prompt, model=main_model)
+                elif provider == "anthropic":
+                    from models.claude_client import generate_text
+                    mod_out = generate_text(mod_prompt, model=main_model, max_tokens=16384)
+                elif provider == "openai":
+                    from models.gpt_client import generate_text
+                    mod_out = generate_text(mod_prompt, model=main_model, max_tokens=16384)
+                mod_project = parse_project_json(mod_out)
+                mod_model = main_model
         
         if not mod_project:
+            # Log the actual output for debugging
+            output_preview = mod_out[:1000] if mod_out else "No output received"
+            print(f"[PROJECT_MOD] Parse failed. Model: {mod_model}, Provider: {provider}")
+            print(f"[PROJECT_MOD] Output preview (first 1000 chars): {output_preview}")
+            
+            emitter.emit_error(
+                scope="validation",
+                message="Failed to parse modified project JSON",
+                details=f"The model returned output that could not be parsed as JSON. Output preview: {output_preview[:200]}...",
+                actions=["retry", "ask_user"]
+            )
             raise HTTPException(
                 status_code=500,
-                detail="Failed to parse modified project JSON"
+                detail=f"Failed to parse modified project JSON. Model: {mod_model}. Output preview: {output_preview[:200]}..."
             )
         
         # Save modified project

@@ -46,7 +46,7 @@ app.add_middleware(
 
 # Include routers
 # Unified endpoint (single API for all operations)
-app.include_router(unified.router, prefix="/api/v1", tags=["Unified API"])
+app.include_router(unified.router, prefix="/api", tags=["Unified API"])
 
 # Individual endpoints (for backward compatibility)
 app.include_router(intent.router, prefix="/api/v1", tags=["Intent"])

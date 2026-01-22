@@ -17,12 +17,11 @@ from api.models import (
     ModelInfo
 )
 from api.utils import get_model_info
-from models.gemini_client import (
-    classify_intent,
-    classify_page_type,
-    analyze_query_detail,
-    chat_response,
-    get_smaller_model
+from models.unified_client import (
+    classify_intent_unified,
+    classify_page_type_unified,
+    analyze_query_detail_unified,
+    chat_response_unified
 )
 from data.page_types_reference import get_page_type_by_key, PAGE_TYPES
 from data.questionnaire_config import get_questionnaire, has_questionnaire
@@ -45,6 +44,7 @@ class UnifiedRequest(BaseModel):
     project_id: Optional[str] = Field(None, description="Project ID")
     conversation_id: Optional[str] = Field(None, description="Conversation ID")
     model: Optional[str] = Field(None, description="Optional model override")
+    model_name: Optional[str] = Field(None, description="Model family: Gemini, Claude, or GPT (defaults to Gemini)")
 
 
 class UnifiedResponse(BaseModel):
@@ -55,8 +55,8 @@ class UnifiedResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if action failed")
 
 
-@router.post("/execute", response_model=UnifiedResponse)
-async def execute_action(request: UnifiedRequest):
+@router.post("/stream", response_model=UnifiedResponse)
+async def stream_action(request: UnifiedRequest):
     """
     Unified endpoint for all API operations.
     
@@ -98,15 +98,16 @@ async def execute_action(request: UnifiedRequest):
     """
     try:
         action = request.action.lower()
+        model_name = (request.model_name or "gemini").lower()
         
         # Route to appropriate handler
         if action == "classify_intent":
             if not request.user_text:
                 raise HTTPException(status_code=400, detail="user_text is required for classify_intent")
             
-            label, metadata = classify_intent(request.user_text, model=request.model)
-            model_name = metadata.get("model", "unknown")
-            model_info_dict = get_model_info(model_name)
+            label, metadata = classify_intent_unified(request.user_text, model_name=model_name)
+            model_used = metadata.get("model", "unknown")
+            model_info_dict = get_model_info(model_used)
             
             return UnifiedResponse(
                 action="classify_intent",
@@ -125,9 +126,9 @@ async def execute_action(request: UnifiedRequest):
             if not request.user_text:
                 raise HTTPException(status_code=400, detail="user_text is required for classify_page_type")
             
-            page_type_key, metadata = classify_page_type(request.user_text, model=request.model)
-            model_name = metadata.get("model", "unknown")
-            model_info_dict = get_model_info(model_name)
+            page_type_key, metadata = classify_page_type_unified(request.user_text, model_name=model_name)
+            model_used = metadata.get("model", "unknown")
+            model_info_dict = get_model_info(model_used)
             
             return UnifiedResponse(
                 action="classify_page_type",
@@ -146,9 +147,10 @@ async def execute_action(request: UnifiedRequest):
             if not request.user_text:
                 raise HTTPException(status_code=400, detail="user_text is required for analyze_query")
             
-            needs_followup, confidence = analyze_query_detail(request.user_text, model=request.model)
-            model_name = request.model or get_smaller_model()
-            model_info_dict = get_model_info(model_name)
+            needs_followup, confidence = analyze_query_detail_unified(request.user_text, model_name=model_name)
+            from router.router_config import get_router_model
+            model_used = get_router_model(model_name)
+            model_info_dict = get_model_info(model_used)
             
             explanation = (
                 "Query needs follow-up questions to gather more details"
@@ -172,9 +174,10 @@ async def execute_action(request: UnifiedRequest):
             if not request.user_text:
                 raise HTTPException(status_code=400, detail="user_text is required for chat")
             
-            response_text = chat_response(request.user_text, model=request.model)
-            model_name = request.model or get_smaller_model()
-            model_info_dict = get_model_info(model_name)
+            response_text = chat_response_unified(request.user_text, model_name=model_name)
+            from router.router_config import get_router_model
+            model_used = get_router_model(model_name)
+            model_info_dict = get_model_info(model_used)
             
             return UnifiedResponse(
                 action="chat",
@@ -200,7 +203,8 @@ async def execute_action(request: UnifiedRequest):
                 questionnaire_answers=request.questionnaire_answers,
                 wizard_inputs=request.wizard_inputs,
                 project_id=request.project_id,
-                conversation_id=request.conversation_id
+                conversation_id=request.conversation_id,
+                model_name=model_name
             )
             
             project_response = await generate_project(project_request)
@@ -222,7 +226,8 @@ async def execute_action(request: UnifiedRequest):
                 instruction=request.instruction,
                 project_json=request.project_json,
                 project_id=request.project_id,
-                conversation_id=request.conversation_id
+                conversation_id=request.conversation_id,
+                model_name=model_name
             )
             
             mod_response = await modify_project(mod_request)

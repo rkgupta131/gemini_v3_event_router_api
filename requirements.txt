@@ -1,8 +1,19 @@
-streamlit
-requests
-python-dotenv
-google-genai
+# Core Framework
 fastapi
 uvicorn[standard]
 pydantic
+
+# Streamlit (for original app)
+streamlit
+
+# HTTP Requests
+requests
+
+# Environment Variables
+python-dotenv
+
+# AI Model Providers
+google-genai
+anthropic
+openai
 

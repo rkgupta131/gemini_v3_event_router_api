@@ -16,7 +16,8 @@ router = APIRouter()
 @router.get("/stream")
 async def stream_events(
     project_id: Optional[str] = Query(None, description="Filter events by project ID"),
-    conversation_id: Optional[str] = Query(None, description="Filter events by conversation ID")
+    conversation_id: Optional[str] = Query(None, description="Filter events by conversation ID"),
+    model_name: Optional[str] = Query(None, description="Filter events by model family: Gemini, Claude, or GPT")
 ):
     """
     Unified event streaming endpoint via Server-Sent Events (SSE).
@@ -60,7 +61,7 @@ async def stream_events(
         """Generator function for SSE streaming"""
         try:
             # First, send historical events matching the filters
-            historical_events = stream_manager.get_historical_events(project_id, conversation_id)
+            historical_events = stream_manager.get_historical_events(project_id, conversation_id, model_name)
             for event in historical_events:
                 yield f"data: {json.dumps(event)}\n\n"
             

@@ -71,7 +71,8 @@ class StreamManager:
     def get_historical_events(
         self, 
         project_id: Optional[str] = None, 
-        conversation_id: Optional[str] = None
+        conversation_id: Optional[str] = None,
+        model_name: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Get historical events matching filters"""
         filtered = []
@@ -80,6 +81,11 @@ class StreamManager:
                 continue
             if conversation_id and event.get("conversation_id") != conversation_id:
                 continue
+            if model_name:
+                # Check if event has model_name in payload or metadata
+                event_model_name = event.get("model_name") or event.get("payload", {}).get("model_name")
+                if event_model_name and event_model_name.lower() != model_name.lower():
+                    continue
             filtered.append(event)
         return filtered
 
