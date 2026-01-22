@@ -3,8 +3,9 @@ Chat Routes
 """
 
 from fastapi import APIRouter, HTTPException
-from api.models import ChatRequest, ChatResponse
-from models.gemini_client import chat_response
+from api.models import ChatRequest, ChatResponse, ModelInfo
+from api.utils import get_model_info
+from models.gemini_client import chat_response, get_smaller_model
 
 router = APIRouter()
 
@@ -23,9 +24,13 @@ async def chat(request: ChatRequest):
             model=request.model
         )
         
+        model_name = request.model or get_smaller_model()
+        model_info_dict = get_model_info(model_name)
+        
         return ChatResponse(
             response=response_text,
-            model=request.model or "gemini-2.0-flash-lite"
+            model=model_name,  # Keep for backward compatibility
+            model_info=ModelInfo(**model_info_dict)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat response generation failed: {str(e)}")

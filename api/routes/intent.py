@@ -3,7 +3,8 @@ Intent Classification Routes
 """
 
 from fastapi import APIRouter, HTTPException
-from api.models import IntentClassificationRequest, IntentClassificationResponse
+from api.models import IntentClassificationRequest, IntentClassificationResponse, ModelInfo
+from api.utils import get_model_info
 from models.gemini_client import classify_intent
 
 router = APIRouter()
@@ -27,11 +28,15 @@ async def classify_user_intent(request: IntentClassificationRequest):
             model=request.model
         )
         
+        model_name = metadata.get("model", "unknown")
+        model_info_dict = get_model_info(model_name)
+        
         return IntentClassificationResponse(
             label=label,
             explanation=metadata.get("explanation", ""),
             confidence=metadata.get("confidence", 0.0),
-            model=metadata.get("model", "unknown"),
+            model=model_name,  # Keep for backward compatibility
+            model_info=ModelInfo(**model_info_dict),
             metadata=metadata
         )
     except Exception as e:

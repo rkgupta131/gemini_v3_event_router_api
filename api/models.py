@@ -8,6 +8,16 @@ from datetime import datetime
 
 
 # ============================================================================
+# Model Information Models
+# ============================================================================
+
+class ModelInfo(BaseModel):
+    """Standardized model information for frontend compatibility"""
+    model_family: str = Field(..., description="Model family (e.g., 'Gemini', 'Anthropic')")
+    model_name: str = Field(..., description="Specific model name (e.g., 'gemini-2.0-flash-lite', 'gemini-3-pro-preview')")
+
+
+# ============================================================================
 # Intent Classification Models
 # ============================================================================
 
@@ -22,7 +32,8 @@ class IntentClassificationResponse(BaseModel):
     label: str = Field(..., description="Intent label: webpage_build, chat, greeting_only, illegal, other")
     explanation: str = Field(..., description="Explanation of the classification")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0.0-1.0)")
-    model: str = Field(..., description="Model used for classification")
+    model: str = Field(..., description="Model used for classification (deprecated, use model_info)")
+    model_info: ModelInfo = Field(..., description="Model information with family and name")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -41,7 +52,8 @@ class PageTypeClassificationResponse(BaseModel):
     page_type: str = Field(..., description="Page type key")
     explanation: str = Field(..., description="Explanation of the classification")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0.0-1.0)")
-    model: str = Field(..., description="Model used for classification")
+    model: str = Field(..., description="Model used for classification (deprecated, use model_info)")
+    model_info: ModelInfo = Field(..., description="Model information with family and name")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 
@@ -60,7 +72,8 @@ class QueryAnalysisResponse(BaseModel):
     needs_followup: bool = Field(..., description="Whether follow-up questions are needed")
     explanation: str = Field(..., description="Explanation of the analysis")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score (0.0-1.0)")
-    model: str = Field(..., description="Model used for analysis")
+    model: str = Field(..., description="Model used for analysis (deprecated, use model_info)")
+    model_info: ModelInfo = Field(..., description="Model information with family and name")
 
 
 # ============================================================================
@@ -76,7 +89,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     """Response model for chat"""
     response: str = Field(..., description="Chat response text")
-    model: str = Field(..., description="Model used for generation")
+    model: str = Field(..., description="Model used for generation (deprecated, use model_info)")
+    model_info: ModelInfo = Field(..., description="Model information with family and name")
 
 
 # ============================================================================
@@ -106,7 +120,9 @@ class ProjectGenerationResponse(BaseModel):
     project: Dict[str, Any] = Field(..., description="Generated project JSON")
     files_count: int = Field(..., description="Number of files in the project")
     page_type: Optional[str] = Field(None, description="Detected page type")
-    model_used: str = Field(..., description="Model used for generation")
+    model_used: str = Field(..., description="Model used for generation (deprecated, use model_info)")
+    model_info: ModelInfo = Field(..., description="Model information with family and name")
+    models_used: Optional[List[ModelInfo]] = Field(None, description="All models used in the pipeline (intent, page_type, generation, etc.)")
     generation_time_seconds: Optional[float] = Field(None, description="Time taken for generation")
 
 
@@ -127,7 +143,8 @@ class ProjectModificationResponse(BaseModel):
     project_id: str = Field(..., description="Project ID")
     modified_project: Dict[str, Any] = Field(..., description="Modified project JSON")
     complexity: str = Field(..., description="Modification complexity: small, medium, complex")
-    model_used: str = Field(..., description="Model used for modification")
+    model_used: str = Field(..., description="Model used for modification (deprecated, use model_info)")
+    model_info: ModelInfo = Field(..., description="Model information with family and name")
     modification_time_seconds: Optional[float] = Field(None, description="Time taken for modification")
 
 

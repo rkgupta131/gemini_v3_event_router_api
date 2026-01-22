@@ -7,8 +7,10 @@ from api.models import (
     PageTypeClassificationRequest,
     PageTypeClassificationResponse,
     PageTypeReferenceResponse,
-    PageTypeInfo
+    PageTypeInfo,
+    ModelInfo
 )
+from api.utils import get_model_info
 from models.gemini_client import classify_page_type
 from data.page_types_reference import get_page_type_by_key, PAGE_TYPES
 
@@ -40,11 +42,15 @@ async def classify_page_type_endpoint(request: PageTypeClassificationRequest):
             model=request.model
         )
         
+        model_name = metadata.get("model", "unknown")
+        model_info_dict = get_model_info(model_name)
+        
         return PageTypeClassificationResponse(
             page_type=page_type_key,
             explanation=metadata.get("explanation", ""),
             confidence=metadata.get("confidence", 0.0),
-            model=metadata.get("model", "unknown"),
+            model=model_name,  # Keep for backward compatibility
+            model_info=ModelInfo(**model_info_dict),
             metadata=metadata
         )
     except Exception as e:

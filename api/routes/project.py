@@ -11,8 +11,10 @@ from api.models import (
     ProjectGenerationResponse,
     ProjectModificationRequest,
     ProjectModificationResponse,
-    ProjectResponse
+    ProjectResponse,
+    ModelInfo
 )
+from api.utils import get_model_info
 from models.gemini_client import (
     generate_text,
     parse_project_json,
@@ -85,15 +87,23 @@ async def generate_project(request: ProjectGenerationRequest):
         # Emit initial events
         emitter.emit_chat_message("Starting project generation...")
         
+        # Track all models used in the pipeline
+        models_used_list = []
+        
         # Classify page type if not provided
         page_type_key = request.page_type_key
+        page_type_model = None
         if not page_type_key:
-            page_type_key, _ = classify_page_type(request.user_query)
+            page_type_key, page_type_meta = classify_page_type(request.user_query)
+            page_type_model = page_type_meta.get("model", get_smaller_model())
+            models_used_list.append(ModelInfo(**get_model_info(page_type_model)))
         
         page_type_config = get_page_type_by_key(page_type_key)
         
         # Analyze query detail
-        needs_followup, _ = analyze_query_detail(request.user_query)
+        query_model = get_smaller_model()
+        needs_followup, _ = analyze_query_detail(request.user_query, model=query_model)
+        models_used_list.append(ModelInfo(**get_model_info(query_model)))
         
         # Build generation prompt
         base_prompt = (
@@ -195,13 +205,18 @@ async def generate_project(request: ProjectGenerationRequest):
         
         files_count = len(project.get('files', {}))
         
+        # Add the main generation model to models_used_list
+        models_used_list.append(ModelInfo(**get_model_info(webpage_model)))
+        
         return ProjectGenerationResponse(
             project_id=project_id,
             conversation_id=conversation_id,
             project=project,
             files_count=files_count,
             page_type=page_type_key,
-            model_used=webpage_model,
+            model_used=webpage_model,  # Keep for backward compatibility
+            model_info=ModelInfo(**get_model_info(webpage_model)),
+            models_used=models_used_list,
             generation_time_seconds=elapsed_time
         )
         
@@ -298,7 +313,8 @@ IMPORTANT: Return ONLY the complete modified project JSON. No markdown, no code 
             project_id=project_id,
             modified_project=mod_project,
             complexity=complexity,
-            model_used=mod_model,
+            model_used=mod_model,  # Keep for backward compatibility
+            model_info=ModelInfo(**get_model_info(mod_model)),
             modification_time_seconds=elapsed_time
         )
         

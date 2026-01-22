@@ -3,8 +3,9 @@ Query Analysis Routes
 """
 
 from fastapi import APIRouter, HTTPException
-from api.models import QueryAnalysisRequest, QueryAnalysisResponse
-from models.gemini_client import analyze_query_detail
+from api.models import QueryAnalysisRequest, QueryAnalysisResponse, ModelInfo
+from api.utils import get_model_info
+from models.gemini_client import analyze_query_detail, get_smaller_model
 
 router = APIRouter()
 
@@ -31,11 +32,15 @@ async def analyze_query(request: QueryAnalysisRequest):
             else "Query has sufficient detail to proceed"
         )
         
+        model_name = request.model or get_smaller_model()
+        model_info_dict = get_model_info(model_name)
+        
         return QueryAnalysisResponse(
             needs_followup=needs_followup,
             explanation=explanation,
             confidence=confidence,
-            model=request.model or "gemini-2.0-flash-lite"
+            model=model_name,  # Keep for backward compatibility
+            model_info=ModelInfo(**model_info_dict)
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query analysis failed: {str(e)}")
