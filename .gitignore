@@ -1,0 +1,78 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Google Cloud credentials
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# Output directories
+output/
+modified_output/
+*.jsonl
+events.jsonl
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Google Cloud SDK (if included)
+google-cloud-sdk/
+google-cloud-cli-*.tar.gz
+
+# Project specific
+bedrock-router-user-*.json
+n0project-*.json
+
+# Documentation builds
+docs/_build/
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
+
